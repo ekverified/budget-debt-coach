@@ -1,0 +1,6 @@
+echo '# .gitignore
+config.yaml
+budget_history.csv
+*.pyc
+__pycache__/
+*.log' > .gitignore
