@@ -10,6 +10,7 @@ import yaml
 from yaml.loader import SafeLoader
 from twilio.rest import Client
 import os
+import tempfile
 
 # ---------------- Loan payoff calculations ---------------- #
 def calculate_payoff(balance, rate, monthly_payment):
@@ -100,9 +101,25 @@ st.set_page_config(page_title="Budget & Debt Coach", layout="wide")
 st.title("💰 Budget & Debt Coach (Interest-aware)")
 
 # Authentication
-with open("D:/overcoming debts/config.yaml", "r") as file:
-    config = yaml.load(file, Loader=SafeLoader)
-authenticator = stauth.Authenticate(config['credentials'], config['cookie']['name'], config['cookie']['key'], config['cookie']['expiry_days'])
+credentials = {
+    "usernames": {
+        "user1": {
+            "email": os.getenv("USER1_EMAIL", "user1@example.com"),
+            "name": os.getenv("USER1_NAME", "User One"),
+            "password": os.getenv("USER1_PASSWORD", "")
+        }
+    }
+}
+config = {
+    "credentials": credentials,
+    "cookie": {"expiry_days": 30, "key": "random_key", "name": "budget_app"}
+}
+authenticator = stauth.Authenticate(
+    config['credentials'],
+    config['cookie']['name'],
+    config['cookie']['key'],
+    config['cookie']['expiry_days']
+)
 name, authentication_status, username = authenticator.login('Login', 'main')
 
 if authentication_status:
@@ -198,7 +215,10 @@ if authentication_status:
             "avalanche_interest": ava_interest
         }
         st.session_state[f'history_{username}'].append(history_entry)
-        pd.DataFrame(st.session_state[f'history_{username}']).to_csv("D:/overcoming debts/budget_history.csv", index=False)
+        # Save history to a temporary file for download
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
+            pd.DataFrame(st.session_state[f'history_{username}']).to_csv(tmp_file.name, index=False)
+            tmp_file_path = tmp_file.name
 
         # Chart
         labels = ["Savings", "Debt", "Expenses"]
@@ -223,7 +243,8 @@ if authentication_status:
     st.subheader("History")
     if st.session_state[f'history_{username}']:
         st.dataframe(pd.DataFrame(st.session_state[f'history_{username}']))
-        st.download_button("Download History (CSV)", pd.DataFrame(st.session_state[f'history_{username}']).to_csv(index=False), "budget_history.csv", "text/csv")
+        with open(tmp_file_path, 'rb') as f:
+            st.download_button("Download History (CSV)", f.read(), "budget_history.csv", "text/csv")
 else:
     st.error("Please log in to continue.")
     st.stop()
